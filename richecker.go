@@ -6,41 +6,30 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/rds"
 	"log"
 	"time"
 )
 
 func Check(days int) {
-	sess := session.Must(session.NewSession())
-
-	CheckEC2(sess, days)
-}
-
-func CheckEC2(sess *session.Session, days int) {
 	fmt.Println("Days     :", days)
 
-	var timeout time.Duration
-	// All clients require a Session. The Session provides the client with
-	// shared configuration such as region, endpoint, and credentials. A
-	// Session should be shared where possible to take advantage of
-	// configuration and credential caching. See the session package for
-	// more information.
+	sess := session.Must(session.NewSession())
 
-	// Create a new instance of the service's client with a Session.
-	// Optional aws.Config values can also be provided as variadic arguments
-	// to the New function. This option allows you to provide service
-	// specific configuration.
+	CheckEC2(sess)
+	CheckRDS(sess)
+}
+
+func CheckEC2(sess *session.Session) {
+
+	var timeout time.Duration
 	svc := ec2.New(sess)
 
-	// Create a context with a timeout that will abort the upload if it takes
-	// more than the passed in timeout.
 	ctx := context.Background()
 	var cancelFn func()
 	if timeout > 0 {
 		ctx, cancelFn = context.WithTimeout(ctx, timeout)
 	}
-	// Ensure the context is canceled to prevent leaking.
-	// See context package for more information, https://golang.org/pkg/context/
 	if cancelFn != nil {
 		defer cancelFn()
 	}
@@ -63,5 +52,35 @@ func CheckEC2(sess *session.Session, days int) {
 		fmt.Println(*ri.InstanceType)
 		fmt.Println(*ri.InstanceCount)
 		fmt.Println(ri.End)
+	}
+}
+
+func CheckRDS(sess *session.Session) {
+	var timeout time.Duration
+
+	svc := rds.New(sess)
+
+	ctx := context.Background()
+	var cancelFn func()
+	if timeout > 0 {
+		ctx, cancelFn = context.WithTimeout(ctx, timeout)
+	}
+	if cancelFn != nil {
+		defer cancelFn()
+	}
+
+	// RDS could not filter.
+	// https://godoc.org/github.com/aws/aws-sdk-go/service/rds#DescribeReservedDBInstancesInput
+	params := rds.DescribeReservedDBInstancesInput{}
+	activeRIs, err := svc.DescribeReservedDBInstances(&params)
+	if err != nil {
+		log.Fatalln("cannot get RDS RI information.", err)
+	}
+	for _, ri := range activeRIs.ReservedDBInstances {
+		if *ri.State == "active" {
+			fmt.Println(*ri.DBInstanceClass)
+			fmt.Println(*ri.DBInstanceCount)
+			fmt.Println(ri.StartTime.Add(time.Duration(*ri.Duration) * time.Second))
+		}
 	}
 }
