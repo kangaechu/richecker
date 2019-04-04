@@ -3,7 +3,7 @@
 # https://gist.github.com/tadashi-aikawa/da73d277a3c1ec6767ed48d1335900f3
 .PHONY: $(shell grep -E '^[a-zA-Z_-]+:' $(MAKEFILE_LIST) | sed 's/://')
 
-install: ## install slacts command
+install: ## install richecker command
 	go install github.com/kangaechu/richecker/cmd/richecker
 
 test: ## run tests for all package
