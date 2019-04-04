@@ -3,6 +3,7 @@ package richecker
 import (
 	"context"
 	"fmt"
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"log"
@@ -40,11 +41,20 @@ func Check(accountId string, days int) {
 		defer cancelFn()
 	}
 
-	dri := ec2.DescribeReservedInstancesInput{}
-	out, err := svc.DescribeReservedInstances(&dri)
-	if err != nil {
-		log.Fatalln("cannot get EC2 RI information.")
+	// filter state=active
+	params := ec2.DescribeReservedInstancesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("state"),
+				Values: []*string{aws.String("active")},
+			},
+		},
 	}
-	fmt.Println(out)
+	activeRIs, err := svc.DescribeReservedInstances(&params)
+	if err != nil {
+		log.Fatalln("cannot get EC2 RI information.", err)
+	}
+
+	fmt.Println(activeRIs)
 
 }
