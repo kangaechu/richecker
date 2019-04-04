@@ -10,8 +10,13 @@ import (
 	"time"
 )
 
-func Check(accountId string, days int) {
-	fmt.Println("AccountID:", accountId)
+func Check(days int) {
+	sess := session.Must(session.NewSession())
+
+	CheckEC2(sess, days)
+}
+
+func CheckEC2(sess *session.Session, days int) {
 	fmt.Println("Days     :", days)
 
 	var timeout time.Duration
@@ -20,7 +25,6 @@ func Check(accountId string, days int) {
 	// Session should be shared where possible to take advantage of
 	// configuration and credential caching. See the session package for
 	// more information.
-	sess := session.Must(session.NewSession())
 
 	// Create a new instance of the service's client with a Session.
 	// Optional aws.Config values can also be provided as variadic arguments
@@ -55,6 +59,9 @@ func Check(accountId string, days int) {
 		log.Fatalln("cannot get EC2 RI information.", err)
 	}
 
-	fmt.Println(activeRIs)
-
+	for _, ri := range activeRIs.ReservedInstances {
+		fmt.Println(*ri.InstanceType)
+		fmt.Println(*ri.InstanceCount)
+		fmt.Println(ri.End)
+	}
 }

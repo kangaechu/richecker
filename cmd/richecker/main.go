@@ -7,8 +7,7 @@ import (
 )
 
 type CmdOpts struct {
-	AccountID string `short:"i" long:"accountid" description:"AWS Account ID" required:"true"`
-	Days      int    `short:"d" long:"days_before_expiration" description:"Print if expiration date is less than this days. (default:3)"`
+	Days int `short:"d" long:"days_before_expiration" description:"Print if expiration date is less than this days. (default:3)"`
 }
 
 func main() {
@@ -19,5 +18,5 @@ func main() {
 		parser.WriteHelp(os.Stdout)
 		os.Exit(1)
 	}
-	richecker.Check(opts.AccountID, opts.Days)
+	richecker.Check(opts.Days)
 }
