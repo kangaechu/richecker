@@ -6,6 +6,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"log"
 	"time"
@@ -18,6 +19,10 @@ func Check(days int) {
 
 	CheckEC2(sess)
 	CheckRDS(sess)
+	CheckElastiCache(sess)
+	//CheckRedshift(sess)
+	//CheckCloudFront(sess)
+	//CheckDynamoDB(sess)
 }
 
 func CheckEC2(sess *session.Session) {
@@ -80,6 +85,35 @@ func CheckRDS(sess *session.Session) {
 		if *ri.State == "active" {
 			fmt.Println(*ri.DBInstanceClass)
 			fmt.Println(*ri.DBInstanceCount)
+			fmt.Println(ri.StartTime.Add(time.Duration(*ri.Duration) * time.Second))
+		}
+	}
+}
+
+func CheckElastiCache(sess *session.Session) {
+	var timeout time.Duration
+
+	svc := elasticache.New(sess)
+
+	ctx := context.Background()
+	var cancelFn func()
+	if timeout > 0 {
+		ctx, cancelFn = context.WithTimeout(ctx, timeout)
+	}
+	if cancelFn != nil {
+		defer cancelFn()
+	}
+
+	params := elasticache.DescribeReservedCacheNodesInput{}
+	activeRIs, err := svc.DescribeReservedCacheNodes(&params)
+	if err != nil {
+		log.Fatalln("cannot get ElastiCache RI information.", err)
+	}
+	for _, ri := range activeRIs.ReservedCacheNodes {
+		if *ri.State == "active" {
+			fmt.Println(ri)
+			fmt.Println(*ri.OfferingType)
+			fmt.Println(*ri.CacheNodeCount)
 			fmt.Println(ri.StartTime.Add(time.Duration(*ri.Duration) * time.Second))
 		}
 	}
