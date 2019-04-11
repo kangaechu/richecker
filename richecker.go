@@ -18,20 +18,9 @@ func Check(days int) {
 
 	sess := session.Must(session.NewSession())
 
-	CheckEC2(sess)
-	CheckRDS(sess)
-	CheckElastiCache(sess)
-	CheckRedshift(sess)
-	//CheckCloudFront(sess)
-	//CheckDynamoDB(sess)
-}
-
-func CheckEC2(sess *session.Session) {
-
 	var timeout time.Duration
-	svc := ec2.New(sess)
-
 	ctx := context.Background()
+
 	var cancelFn func()
 	if timeout > 0 {
 		ctx, cancelFn = context.WithTimeout(ctx, timeout)
@@ -39,6 +28,17 @@ func CheckEC2(sess *session.Session) {
 	if cancelFn != nil {
 		defer cancelFn()
 	}
+
+	CheckEC2(ctx, sess)
+	CheckRDS(ctx, sess)
+	CheckElastiCache(ctx, sess)
+	CheckRedshift(ctx, sess)
+	//CheckCloudFront(sess)
+	//CheckDynamoDB(sess)
+}
+
+func CheckEC2(ctx context.Context, sess *session.Session) {
+	svc := ec2.New(sess)
 
 	// filter state=active
 	params := ec2.DescribeReservedInstancesInput{
@@ -61,19 +61,8 @@ func CheckEC2(sess *session.Session) {
 	}
 }
 
-func CheckRDS(sess *session.Session) {
-	var timeout time.Duration
-
+func CheckRDS(ctx context.Context, sess *session.Session) {
 	svc := rds.New(sess)
-
-	ctx := context.Background()
-	var cancelFn func()
-	if timeout > 0 {
-		ctx, cancelFn = context.WithTimeout(ctx, timeout)
-	}
-	if cancelFn != nil {
-		defer cancelFn()
-	}
 
 	// RDS could not filter.
 	// https://godoc.org/github.com/aws/aws-sdk-go/service/rds#DescribeReservedDBInstancesInput
@@ -91,19 +80,8 @@ func CheckRDS(sess *session.Session) {
 	}
 }
 
-func CheckElastiCache(sess *session.Session) {
-	var timeout time.Duration
-
+func CheckElastiCache(ctx context.Context, sess *session.Session) {
 	svc := elasticache.New(sess)
-
-	ctx := context.Background()
-	var cancelFn func()
-	if timeout > 0 {
-		ctx, cancelFn = context.WithTimeout(ctx, timeout)
-	}
-	if cancelFn != nil {
-		defer cancelFn()
-	}
 
 	params := elasticache.DescribeReservedCacheNodesInput{}
 	activeRIs, err := svc.DescribeReservedCacheNodes(&params)
@@ -120,19 +98,25 @@ func CheckElastiCache(sess *session.Session) {
 	}
 }
 
-func CheckRedshift(sess *session.Session) {
-	var timeout time.Duration
-
+func CheckRedshift(ctx context.Context, sess *session.Session) {
 	svc := redshift.New(sess)
 
-	ctx := context.Background()
-	var cancelFn func()
-	if timeout > 0 {
-		ctx, cancelFn = context.WithTimeout(ctx, timeout)
+	params := redshift.DescribeReservedNodesInput{}
+	activeRIs, err := svc.DescribeReservedNodes(&params)
+	if err != nil {
+		log.Fatalln("cannot get RDS RI information.", err)
 	}
-	if cancelFn != nil {
-		defer cancelFn()
+	for _, ri := range activeRIs.ReservedNodes {
+		if *ri.State == "active" {
+			fmt.Println(*ri.NodeType)
+			fmt.Println(*ri.NodeCount)
+			fmt.Println(ri.StartTime.Add(time.Duration(*ri.Duration) * time.Second))
+		}
 	}
+}
+
+func CheckCloudFront(ctx context.Context, sess *session.Session) {
+	svc := redshift.New(sess)
 
 	params := redshift.DescribeReservedNodesInput{}
 	activeRIs, err := svc.DescribeReservedNodes(&params)
