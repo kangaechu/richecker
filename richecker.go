@@ -14,7 +14,7 @@ import (
 )
 
 func Check(days int) {
-	fmt.Println("Days     :", days)
+	fmt.Println("Days:", days)
 
 	sess := session.Must(session.NewSession())
 
