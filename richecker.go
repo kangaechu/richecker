@@ -22,6 +22,7 @@ type ReservedInstance struct {
 
 func Check(days int) {
 	fmt.Println("Days:", days)
+	expireAt := time.Now().Add(time.Duration(-days) * 24 * time.Hour)
 
 	sess := session.Must(session.NewSession())
 
@@ -36,18 +37,18 @@ func Check(days int) {
 		defer cancelFn()
 	}
 
-	ec2RIs := CheckEC2(ctx, sess)
+	ec2RIs := CheckEC2(ctx, sess, expireAt)
 	fmt.Println(&ec2RIs)
-	rdsRIs := CheckRDS(ctx, sess)
+	rdsRIs := CheckRDS(ctx, sess, expireAt)
 	fmt.Println(&rdsRIs)
-	elastiCacheRIs := CheckElastiCache(ctx, sess)
+	elastiCacheRIs := CheckElastiCache(ctx, sess, expireAt)
 	fmt.Println(&elastiCacheRIs)
-	redshiftRIs := CheckRedshift(ctx, sess)
+	redshiftRIs := CheckRedshift(ctx, sess, expireAt)
 	fmt.Println(&redshiftRIs)
 
 }
 
-func CheckEC2(ctx context.Context, sess *session.Session) []*ReservedInstance {
+func CheckEC2(ctx context.Context, sess *session.Session, expireAt time.Time) []*ReservedInstance {
 	svc := ec2.New(sess)
 
 	// filter state=active
@@ -66,12 +67,14 @@ func CheckEC2(ctx context.Context, sess *session.Session) []*ReservedInstance {
 
 	var RIs []*ReservedInstance
 	for _, ri := range activeRIs.ReservedInstances {
-		RIs = append(RIs, &ReservedInstance{"EC2", *ri.InstanceType, *ri.InstanceCount, *ri.End})
+		if ri.End.After(expireAt) {
+			RIs = append(RIs, &ReservedInstance{"EC2", *ri.InstanceType, *ri.InstanceCount, *ri.End})
+		}
 	}
 	return RIs
 }
 
-func CheckRDS(ctx context.Context, sess *session.Session) []*ReservedInstance {
+func CheckRDS(ctx context.Context, sess *session.Session, expireAt time.Time) []*ReservedInstance {
 	svc := rds.New(sess)
 
 	// RDS could not filter.
@@ -86,13 +89,15 @@ func CheckRDS(ctx context.Context, sess *session.Session) []*ReservedInstance {
 	for _, ri := range activeRIs.ReservedDBInstances {
 		if *ri.State == "active" {
 			end := ri.StartTime.Add(time.Duration(*ri.Duration) * time.Second)
-			RIs = append(RIs, &ReservedInstance{"RDS", *ri.DBInstanceClass, *ri.DBInstanceCount, end})
+			if end.After(expireAt) {
+				RIs = append(RIs, &ReservedInstance{"RDS", *ri.DBInstanceClass, *ri.DBInstanceCount, end})
+			}
 		}
 	}
 	return RIs
 }
 
-func CheckElastiCache(ctx context.Context, sess *session.Session) []*ReservedInstance {
+func CheckElastiCache(ctx context.Context, sess *session.Session, expireAt time.Time) []*ReservedInstance {
 	svc := elasticache.New(sess)
 
 	params := elasticache.DescribeReservedCacheNodesInput{}
@@ -105,13 +110,15 @@ func CheckElastiCache(ctx context.Context, sess *session.Session) []*ReservedIns
 	for _, ri := range activeRIs.ReservedCacheNodes {
 		if *ri.State == "active" {
 			end := ri.StartTime.Add(time.Duration(*ri.Duration) * time.Second)
-			RIs = append(RIs, &ReservedInstance{"RDS", *ri.OfferingType, *ri.CacheNodeCount, end})
+			if end.After(expireAt) {
+				RIs = append(RIs, &ReservedInstance{"RDS", *ri.OfferingType, *ri.CacheNodeCount, end})
+			}
 		}
 	}
 	return RIs
 }
 
-func CheckRedshift(ctx context.Context, sess *session.Session) []*ReservedInstance {
+func CheckRedshift(ctx context.Context, sess *session.Session, expireAt time.Time) []*ReservedInstance {
 	svc := redshift.New(sess)
 
 	params := redshift.DescribeReservedNodesInput{}
@@ -124,7 +131,9 @@ func CheckRedshift(ctx context.Context, sess *session.Session) []*ReservedInstan
 	for _, ri := range activeRIs.ReservedNodes {
 		if *ri.State == "active" {
 			end := ri.StartTime.Add(time.Duration(*ri.Duration) * time.Second)
-			RIs = append(RIs, &ReservedInstance{"RDS", *ri.NodeType, *ri.NodeCount, end})
+			if end.After(expireAt) {
+				RIs = append(RIs, &ReservedInstance{"RDS", *ri.NodeType, *ri.NodeCount, end})
+			}
 		}
 	}
 	return RIs
