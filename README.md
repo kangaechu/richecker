@@ -11,7 +11,7 @@ Download binary from releases page.
 ### Run 
 
 ```
-$ richecker -i <ACCOUNT_ID> -d <DAYS_BEFORE_EXPIREATION> 
+$ richecker -d <DAYS_BEFORE_EXPIREATION> 
 ```
 
 ## License
