@@ -13,6 +13,13 @@ import (
 	"time"
 )
 
+type ReservedInstance struct {
+	Service string
+	Type    string
+	Count   int64
+	End     time.Time
+}
+
 func Check(days int) {
 	fmt.Println("Days:", days)
 
@@ -29,15 +36,18 @@ func Check(days int) {
 		defer cancelFn()
 	}
 
-	CheckEC2(ctx, sess)
-	CheckRDS(ctx, sess)
-	CheckElastiCache(ctx, sess)
-	CheckRedshift(ctx, sess)
-	//CheckCloudFront(sess)
-	//CheckDynamoDB(sess)
+	ec2RIs := CheckEC2(ctx, sess)
+	fmt.Println(&ec2RIs)
+	rdsRIs := CheckRDS(ctx, sess)
+	fmt.Println(&rdsRIs)
+	elastiCacheRIs := CheckElastiCache(ctx, sess)
+	fmt.Println(&elastiCacheRIs)
+	redshiftRIs := CheckRedshift(ctx, sess)
+	fmt.Println(&redshiftRIs)
+
 }
 
-func CheckEC2(ctx context.Context, sess *session.Session) {
+func CheckEC2(ctx context.Context, sess *session.Session) []*ReservedInstance {
 	svc := ec2.New(sess)
 
 	// filter state=active
@@ -54,14 +64,14 @@ func CheckEC2(ctx context.Context, sess *session.Session) {
 		log.Fatalln("cannot get EC2 RI information.", err)
 	}
 
+	var RIs []*ReservedInstance
 	for _, ri := range activeRIs.ReservedInstances {
-		fmt.Println(*ri.InstanceType)
-		fmt.Println(*ri.InstanceCount)
-		fmt.Println(ri.End)
+		RIs = append(RIs, &ReservedInstance{"EC2", *ri.InstanceType, *ri.InstanceCount, *ri.End})
 	}
+	return RIs
 }
 
-func CheckRDS(ctx context.Context, sess *session.Session) {
+func CheckRDS(ctx context.Context, sess *session.Session) []*ReservedInstance {
 	svc := rds.New(sess)
 
 	// RDS could not filter.
@@ -71,16 +81,18 @@ func CheckRDS(ctx context.Context, sess *session.Session) {
 	if err != nil {
 		log.Fatalln("cannot get RDS RI information.", err)
 	}
+
+	var RIs []*ReservedInstance
 	for _, ri := range activeRIs.ReservedDBInstances {
 		if *ri.State == "active" {
-			fmt.Println(*ri.DBInstanceClass)
-			fmt.Println(*ri.DBInstanceCount)
-			fmt.Println(ri.StartTime.Add(time.Duration(*ri.Duration) * time.Second))
+			end := ri.StartTime.Add(time.Duration(*ri.Duration) * time.Second)
+			RIs = append(RIs, &ReservedInstance{"RDS", *ri.DBInstanceClass, *ri.DBInstanceCount, end})
 		}
 	}
+	return RIs
 }
 
-func CheckElastiCache(ctx context.Context, sess *session.Session) {
+func CheckElastiCache(ctx context.Context, sess *session.Session) []*ReservedInstance {
 	svc := elasticache.New(sess)
 
 	params := elasticache.DescribeReservedCacheNodesInput{}
@@ -88,17 +100,18 @@ func CheckElastiCache(ctx context.Context, sess *session.Session) {
 	if err != nil {
 		log.Fatalln("cannot get ElastiCache RI information.", err)
 	}
+
+	var RIs []*ReservedInstance
 	for _, ri := range activeRIs.ReservedCacheNodes {
 		if *ri.State == "active" {
-			fmt.Println(ri)
-			fmt.Println(*ri.OfferingType)
-			fmt.Println(*ri.CacheNodeCount)
-			fmt.Println(ri.StartTime.Add(time.Duration(*ri.Duration) * time.Second))
+			end := ri.StartTime.Add(time.Duration(*ri.Duration) * time.Second)
+			RIs = append(RIs, &ReservedInstance{"RDS", *ri.OfferingType, *ri.CacheNodeCount, end})
 		}
 	}
+	return RIs
 }
 
-func CheckRedshift(ctx context.Context, sess *session.Session) {
+func CheckRedshift(ctx context.Context, sess *session.Session) []*ReservedInstance {
 	svc := redshift.New(sess)
 
 	params := redshift.DescribeReservedNodesInput{}
@@ -106,28 +119,13 @@ func CheckRedshift(ctx context.Context, sess *session.Session) {
 	if err != nil {
 		log.Fatalln("cannot get RDS RI information.", err)
 	}
+
+	var RIs []*ReservedInstance
 	for _, ri := range activeRIs.ReservedNodes {
 		if *ri.State == "active" {
-			fmt.Println(*ri.NodeType)
-			fmt.Println(*ri.NodeCount)
-			fmt.Println(ri.StartTime.Add(time.Duration(*ri.Duration) * time.Second))
+			end := ri.StartTime.Add(time.Duration(*ri.Duration) * time.Second)
+			RIs = append(RIs, &ReservedInstance{"RDS", *ri.NodeType, *ri.NodeCount, end})
 		}
 	}
-}
-
-func CheckCloudFront(ctx context.Context, sess *session.Session) {
-	svc := redshift.New(sess)
-
-	params := redshift.DescribeReservedNodesInput{}
-	activeRIs, err := svc.DescribeReservedNodes(&params)
-	if err != nil {
-		log.Fatalln("cannot get RDS RI information.", err)
-	}
-	for _, ri := range activeRIs.ReservedNodes {
-		if *ri.State == "active" {
-			fmt.Println(*ri.NodeType)
-			fmt.Println(*ri.NodeCount)
-			fmt.Println(ri.StartTime.Add(time.Duration(*ri.Duration) * time.Second))
-		}
-	}
+	return RIs
 }
