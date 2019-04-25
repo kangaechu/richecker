@@ -20,9 +20,13 @@ type ReservedInstance struct {
 	End     time.Time
 }
 
+func (ri ReservedInstance) Print() {
+	localtime := ri.End.In(time.Local).Format("2006-01-02")
+	fmt.Printf("Reserved Instance is almost expiring at %s %-11s %s x %d\n", localtime, ri.Service, ri.Type, ri.Count)
+}
+
 func Check(days int) {
-	fmt.Println("Days:", days)
-	expireAt := time.Now().Add(time.Duration(-days) * 24 * time.Hour)
+	expireAt := time.Now().Add(time.Duration(days) * 24 * time.Hour)
 
 	sess := session.Must(session.NewSession())
 
@@ -38,14 +42,21 @@ func Check(days int) {
 	}
 
 	ec2RIs := CheckEC2(ctx, sess, expireAt)
-	fmt.Println(&ec2RIs)
+	for _, ri := range ec2RIs {
+		ri.Print()
+	}
 	rdsRIs := CheckRDS(ctx, sess, expireAt)
-	fmt.Println(&rdsRIs)
+	for _, ri := range rdsRIs {
+		ri.Print()
+	}
 	elastiCacheRIs := CheckElastiCache(ctx, sess, expireAt)
-	fmt.Println(&elastiCacheRIs)
+	for _, ri := range elastiCacheRIs {
+		ri.Print()
+	}
 	redshiftRIs := CheckRedshift(ctx, sess, expireAt)
-	fmt.Println(&redshiftRIs)
-
+	for _, ri := range redshiftRIs {
+		ri.Print()
+	}
 }
 
 func CheckEC2(ctx context.Context, sess *session.Session, expireAt time.Time) []*ReservedInstance {
@@ -67,7 +78,7 @@ func CheckEC2(ctx context.Context, sess *session.Session, expireAt time.Time) []
 
 	var RIs []*ReservedInstance
 	for _, ri := range activeRIs.ReservedInstances {
-		if ri.End.After(expireAt) {
+		if ri.End.Before(expireAt) {
 			RIs = append(RIs, &ReservedInstance{"EC2", *ri.InstanceType, *ri.InstanceCount, *ri.End})
 		}
 	}
@@ -89,7 +100,7 @@ func CheckRDS(ctx context.Context, sess *session.Session, expireAt time.Time) []
 	for _, ri := range activeRIs.ReservedDBInstances {
 		if *ri.State == "active" {
 			end := ri.StartTime.Add(time.Duration(*ri.Duration) * time.Second)
-			if end.After(expireAt) {
+			if end.Before(expireAt) {
 				RIs = append(RIs, &ReservedInstance{"RDS", *ri.DBInstanceClass, *ri.DBInstanceCount, end})
 			}
 		}
@@ -110,8 +121,8 @@ func CheckElastiCache(ctx context.Context, sess *session.Session, expireAt time.
 	for _, ri := range activeRIs.ReservedCacheNodes {
 		if *ri.State == "active" {
 			end := ri.StartTime.Add(time.Duration(*ri.Duration) * time.Second)
-			if end.After(expireAt) {
-				RIs = append(RIs, &ReservedInstance{"RDS", *ri.OfferingType, *ri.CacheNodeCount, end})
+			if end.Before(expireAt) {
+				RIs = append(RIs, &ReservedInstance{"ElastiCache", *ri.CacheNodeType, *ri.CacheNodeCount, end})
 			}
 		}
 	}
@@ -131,8 +142,8 @@ func CheckRedshift(ctx context.Context, sess *session.Session, expireAt time.Tim
 	for _, ri := range activeRIs.ReservedNodes {
 		if *ri.State == "active" {
 			end := ri.StartTime.Add(time.Duration(*ri.Duration) * time.Second)
-			if end.After(expireAt) {
-				RIs = append(RIs, &ReservedInstance{"RDS", *ri.NodeType, *ri.NodeCount, end})
+			if end.Before(expireAt) {
+				RIs = append(RIs, &ReservedInstance{"Redshift", *ri.NodeType, *ri.NodeCount, end})
 			}
 		}
 	}
