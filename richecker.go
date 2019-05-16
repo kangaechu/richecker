@@ -1,7 +1,6 @@
 package richecker
 
 import (
-	"context"
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -46,36 +45,25 @@ func Check(days int) {
 
 	sess := session.Must(session.NewSession())
 
-	var timeout time.Duration
-	ctx := context.Background()
-
-	var cancelFn func()
-	if timeout > 0 {
-		ctx, cancelFn = context.WithTimeout(ctx, timeout)
-	}
-	if cancelFn != nil {
-		defer cancelFn()
-	}
-
-	ec2RIs := CheckEC2(ctx, sess, expireAt)
+	ec2RIs := CheckEC2(sess, expireAt)
 	for _, ri := range ec2RIs {
 		ri.Print()
 	}
-	rdsRIs := CheckRDS(ctx, sess, expireAt)
+	rdsRIs := CheckRDS(sess, expireAt)
 	for _, ri := range rdsRIs {
 		ri.Print()
 	}
-	elastiCacheRIs := CheckElastiCache(ctx, sess, expireAt)
+	elastiCacheRIs := CheckElastiCache(sess, expireAt)
 	for _, ri := range elastiCacheRIs {
 		ri.Print()
 	}
-	redshiftRIs := CheckRedshift(ctx, sess, expireAt)
+	redshiftRIs := CheckRedshift(sess, expireAt)
 	for _, ri := range redshiftRIs {
 		ri.Print()
 	}
 }
 
-func CheckEC2(ctx context.Context, sess *session.Session, expireAt time.Time) []*ReservedInstance {
+func CheckEC2(sess *session.Session, expireAt time.Time) []*ReservedInstance {
 	svc := ec2.New(sess)
 
 	// filter state=active
@@ -102,7 +90,7 @@ func CheckEC2(ctx context.Context, sess *session.Session, expireAt time.Time) []
 	return RIs
 }
 
-func CheckRDS(ctx context.Context, sess *session.Session, expireAt time.Time) []*ReservedInstance {
+func CheckRDS(sess *session.Session, expireAt time.Time) []*ReservedInstance {
 	svc := rds.New(sess)
 
 	// RDS could not filter.
@@ -126,7 +114,7 @@ func CheckRDS(ctx context.Context, sess *session.Session, expireAt time.Time) []
 	return RIs
 }
 
-func CheckElastiCache(ctx context.Context, sess *session.Session, expireAt time.Time) []*ReservedInstance {
+func CheckElastiCache(sess *session.Session, expireAt time.Time) []*ReservedInstance {
 	svc := elasticache.New(sess)
 
 	params := elasticache.DescribeReservedCacheNodesInput{}
@@ -148,7 +136,7 @@ func CheckElastiCache(ctx context.Context, sess *session.Session, expireAt time.
 	return RIs
 }
 
-func CheckRedshift(ctx context.Context, sess *session.Session, expireAt time.Time) []*ReservedInstance {
+func CheckRedshift(sess *session.Session, expireAt time.Time) []*ReservedInstance {
 	svc := redshift.New(sess)
 
 	params := redshift.DescribeReservedNodesInput{}
