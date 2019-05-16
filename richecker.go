@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"log"
+	"sort"
 	"time"
 )
 
@@ -18,6 +19,21 @@ type ReservedInstance struct {
 	Type    string
 	Count   int64
 	End     time.Time
+}
+
+type ReservedInstances []*ReservedInstance
+
+// Sort Reserved Instance order end date (old is former).
+func (ris ReservedInstances) Len() int {
+	return len(ris)
+}
+
+func (ris ReservedInstances) Swap(i, j int) {
+	ris[i], ris[j] = ris[j], ris[i]
+}
+
+func (ris ReservedInstances) Less(i, j int) bool {
+	return ris[i].End.Before(ris[j].End)
 }
 
 func (ri ReservedInstance) Print() {
@@ -76,12 +92,13 @@ func CheckEC2(ctx context.Context, sess *session.Session, expireAt time.Time) []
 		log.Fatalln("cannot get EC2 RI information.", err)
 	}
 
-	var RIs []*ReservedInstance
+	var RIs ReservedInstances
 	for _, ri := range activeRIs.ReservedInstances {
 		if ri.End.Before(expireAt) {
 			RIs = append(RIs, &ReservedInstance{"EC2", *ri.InstanceType, *ri.InstanceCount, *ri.End})
 		}
 	}
+	sort.Sort(RIs)
 	return RIs
 }
 
@@ -96,7 +113,7 @@ func CheckRDS(ctx context.Context, sess *session.Session, expireAt time.Time) []
 		log.Fatalln("cannot get RDS RI information.", err)
 	}
 
-	var RIs []*ReservedInstance
+	var RIs ReservedInstances
 	for _, ri := range activeRIs.ReservedDBInstances {
 		if *ri.State == "active" {
 			end := ri.StartTime.Add(time.Duration(*ri.Duration) * time.Second)
@@ -105,6 +122,7 @@ func CheckRDS(ctx context.Context, sess *session.Session, expireAt time.Time) []
 			}
 		}
 	}
+	sort.Sort(RIs)
 	return RIs
 }
 
@@ -117,7 +135,7 @@ func CheckElastiCache(ctx context.Context, sess *session.Session, expireAt time.
 		log.Fatalln("cannot get ElastiCache RI information.", err)
 	}
 
-	var RIs []*ReservedInstance
+	var RIs ReservedInstances
 	for _, ri := range activeRIs.ReservedCacheNodes {
 		if *ri.State == "active" {
 			end := ri.StartTime.Add(time.Duration(*ri.Duration) * time.Second)
@@ -126,6 +144,7 @@ func CheckElastiCache(ctx context.Context, sess *session.Session, expireAt time.
 			}
 		}
 	}
+	sort.Sort(RIs)
 	return RIs
 }
 
@@ -138,7 +157,7 @@ func CheckRedshift(ctx context.Context, sess *session.Session, expireAt time.Tim
 		log.Fatalln("cannot get RDS RI information.", err)
 	}
 
-	var RIs []*ReservedInstance
+	var RIs ReservedInstances
 	for _, ri := range activeRIs.ReservedNodes {
 		if *ri.State == "active" {
 			end := ri.StartTime.Add(time.Duration(*ri.Duration) * time.Second)
@@ -147,5 +166,6 @@ func CheckRedshift(ctx context.Context, sess *session.Session, expireAt time.Tim
 			}
 		}
 	}
+	sort.Sort(RIs)
 	return RIs
 }
